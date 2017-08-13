@@ -27,7 +27,7 @@ GroupEvents = (group_url as text) as text  =>
     let 
         apiKey = Extension.CurrentCredential()[Key],
         Headers =  [format="json",
-          page="2",
+          page="50",
           status = "past,upcoming",
           key=  apiKey],
        url = "https://api.meetup.com/" & group_url & "/events"  &"?"&  Uri.BuildQueryString( Headers)  
