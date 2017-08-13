@@ -37,8 +37,7 @@ GroupMembersUrl= (group_url as text) as text =>
 Meetup = [
     Authentication = [
         Key = []
-    ],
-    Label = Extension.LoadString("DataSourceLabel")
+    ]
 ];
 
 // Data Source UI publishing description
@@ -67,18 +66,15 @@ Table.GenerateByPage = (getNextPage as function) as table =>
             (lastPage) => getNextPage(lastPage) // pass the previous page to the next function call
         ),
         // concatenate the pages together
-        tableOfPages = Table.FromList(listOfPages, Splitter.SplitByNothing(), {"Column1"}),
-        firstRow = tableOfPages{0}?
+        firstRow = listOfPages{0}?
     in
         // if we didn't get back any pages of data, return an empty table
         // otherwise set the table type based on the columns of the first page
         if (firstRow = null) then
             Table.FromRows({})
         else        
-            Value.ReplaceType(
-                Table.ExpandTableColumn(tableOfPages, "Column1", Table.ColumnNames(firstRow[Column1])),
-                Value.Type(firstRow[Column1])
-            );
+              Table.Combine ( listOfPages) 
+            ;
 
 // Read all pages of data.
 // After every page, we check the "NextLink" record on the metadata of the previous request.
@@ -89,7 +85,7 @@ GetAllPagesByNextLink = (url as text) as table =>
             // if previous is null, then this is our first page of data
             nextLink = if (previous = null) then url else Value.Metadata(previous)[NextLink]?,
             // if NextLink was set to null by the previous call, we know we have no more data
-            page = if (nextLink <> null) then GetPage(nextLink) else null
+            page = if (nextLink <> null and nextLink <> "") then GetPage(nextLink) else null
         in
             page
     );
@@ -98,14 +94,16 @@ GetAllPagesByNextLink = (url as text) as table =>
           key = Extension.CurrentCredential()[Key]];
 
 
-GetPage = (url as text) as table =>
+shared GetPage = (url as text) as table =>
     let
         response = Web.Contents(url),        
         body = Json.Document(response),
         nextLink = GetNextLink(body),
-        data = Table.FromRecords(body[results])
+        dataHeaders = Record.FieldNames ( Record.Combine( body[results]) ),
+        data =  Table.FromList( body[results], Splitter.SplitByNothing(), {"Column1"}),
+        dataToTable =  Table.ExpandRecordColumn( data, "Column1", dataHeaders)
     in
-        data meta [NextLink = nextLink];
+        dataToTable meta [NextLink = nextLink];
 
 // In this implementation, 'response' will be the parsed body of the response after the call to Json.Document.
 // We look for the '@odata.nextLink' field and simply return null if it doesn't exist.
