@@ -15,12 +15,35 @@ section Meetup;
        let
         objects = #table(
             {"Name",       "Key",  "Data",                "ItemKind", "ItemName", "IsLeaf"},{
-            {"Members",   "Members",  GetAllPagesByNextLink( GroupMembersUrl(group_url) ) , "Table",    "Table",    true}
+             {"Group",   "Group",  GroupInfo(group_url)  , "Table",    "Table",    true},
+            {"Members",   "Members",  GetAllPagesByNextLink( GroupMembersUrl(group_url) ) , "Table",    "Table",    true},
+             {"Events",   "Events", GetAllPagesByNextLinkV3 ( GroupEvents(group_url)  ), "Table",    "Table",    true}
         }),
         NavTable = Table.ToNavigationTable(objects, {"Key"}, "Name", "Data", "ItemKind", "ItemName", "IsLeaf")
     in
         NavTable;
- 
+
+GroupEvents = (group_url as text) as text  =>
+    let 
+        apiKey = Extension.CurrentCredential()[Key],
+        Headers =  [format="json",
+          page="2",
+          status = "past,upcoming",
+          key=  apiKey],
+       url = "https://api.meetup.com/" & group_url & "/events"  &"?"&  Uri.BuildQueryString( Headers)  
+        in
+            url; 
+            
+GroupInfo = (group_url as text) as table =>
+    let 
+        apiKey = Extension.CurrentCredential()[Key],
+        Headers =  [format="json", 
+          key=  apiKey],
+       response = Json.Document(Web.Contents("https://api.meetup.com", 
+                 [RelativePath = group_url])),
+       toTable = Table.FromRecords ( {response})
+        in
+            toTable; 
 
 GroupMembersUrl= (group_url as text) as text =>
     let
@@ -73,7 +96,7 @@ Table.GenerateByPage = (getNextPage as function) as table =>
         if (firstRow = null) then
             Table.FromRows({})
         else        
-              Table.Combine ( listOfPages) 
+              Table.Combine(listOfPages) 
             ;
 
 // Read all pages of data.
@@ -89,12 +112,20 @@ GetAllPagesByNextLink = (url as text) as table =>
         in
             page
     );
- DefaultRequestHeaders = 
-         [format="json",
-          key = Extension.CurrentCredential()[Key]];
 
+//// Function to get the pages based on the API v3
+GetAllPagesByNextLinkV3 = (url as text) as table =>
+    Table.GenerateByPage((previous) => 
+        let
+            // if previous is null, then this is our first page of data
+            nextLink = if (previous = null) then url else Value.Metadata(previous)[NextLink]?,
+            // if NextLink was set to null by the previous call, we know we have no more data
+            page = if (nextLink <> null and nextLink <> "") then GetPageV3(nextLink) else null
+        in
+            page
+    );
 
-shared GetPage = (url as text) as table =>
+GetPage = (url as text) as table =>
     let
         response = Web.Contents(url),        
         body = Json.Document(response),
@@ -105,9 +136,34 @@ shared GetPage = (url as text) as table =>
     in
         dataToTable meta [NextLink = nextLink];
 
+//// Function to get the query a page and create the correct response
+GetPageV3 = (url as text) as table =>
+    let
+        response = Web.Contents(url),        
+        body = Json.Document(response),
+        nextLink = GetNextLinkV3(response),
+        dataHeaders = Record.FieldNames ( Record.Combine(body) ),
+        data =  Table.FromList( body, Splitter.SplitByNothing(), {"Column1"}),
+        dataToTable =  Table.ExpandRecordColumn( data, "Column1", dataHeaders)
+    in
+        dataToTable meta [NextLink = nextLink];
+
 // In this implementation, 'response' will be the parsed body of the response after the call to Json.Document.
 // We look for the '@odata.nextLink' field and simply return null if it doesn't exist.
 GetNextLink = (response) as nullable text => Record.FieldOrDefault(response, "meta")[next]?;
+
+//// Function to get the next events based on the API v3 of Meetup
+GetNextLinkV3 = (response) as nullable text =>
+    let
+        // extract the "Link" header if it exists
+        link =  Record.Field( Value.Metadata(response), "Headers")[Link]? ,
+        links = Text.Split(link, ","),
+        splitLinks = List.Transform(links, each Text.Split(Text.Trim(_), ";")),
+        next = List.Select(splitLinks, each Text.Trim(_{1}) = "rel=""next"""),
+        first = List.First(next),
+        removedBrackets = try Text.Range(first{0}, 1, Text.Length(first{0}) - 2) otherwise null
+    in
+        removedBrackets ;
 
 
 Table.ToNavigationTable = (
