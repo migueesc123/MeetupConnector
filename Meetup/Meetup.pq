@@ -27,7 +27,7 @@ GroupMembersUrl= (group_url as text) as text =>
         apiKey = Extension.CurrentCredential()[Key],
         Headers =  [group_urlname= group_url, 
           format="json", 
-          page="40",
+          page="200",
           key=  apiKey],
        url = Uri.Combine("https://api.meetup.com","2/members") &"?"&  Uri.BuildQueryString( Headers)                                                                                              
     in
