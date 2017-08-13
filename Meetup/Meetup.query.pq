@@ -1,5 +1,5 @@
 ﻿// Use this file to write queries to test your data connector
 let
-    result = Meetup.Contents("Vancouver-Power-BI-User-Group")
+    result = GetPage("hder=name")
 in
     result
