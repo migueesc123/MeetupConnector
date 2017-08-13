@@ -67,7 +67,7 @@ Table.GenerateByPage = (getNextPage as function) as table =>
             (lastPage) => getNextPage(lastPage) // pass the previous page to the next function call
         ),
         // concatenate the pages together
-        tableOfPages = Table.Combine(listOfPages),
+        tableOfPages = Table.FromList(listOfPages, Splitter.SplitByNothing(), {"Column1"}),
         firstRow = tableOfPages{0}?
     in
         // if we didn't get back any pages of data, return an empty table
@@ -98,16 +98,14 @@ GetAllPagesByNextLink = (url as text) as table =>
           key = Extension.CurrentCredential()[Key]];
 
 
-shared GetPage = (url as text) as table =>
+GetPage = (url as text) as table =>
     let
         response = Web.Contents(url),        
         body = Json.Document(response),
         nextLink = GetNextLink(body),
-        Headers = Record.FieldNames( Record.Combine(body[results])),
-        data =  Table.FromList(body[results], Splitter.SplitByNothing(), {"Column1"}),
-        dataToTable =  Table.ExpandRecordColumn(data, "Column1", Headers)
+        data = Table.FromRecords(body[results])
     in
-        dataToTable meta [NextLink = nextLink];
+        data meta [NextLink = nextLink];
 
 // In this implementation, 'response' will be the parsed body of the response after the call to Json.Document.
 // We look for the '@odata.nextLink' field and simply return null if it doesn't exist.
