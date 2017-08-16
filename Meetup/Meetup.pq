@@ -9,7 +9,13 @@ section Meetup;
  ConnectorParams = type function (
  group_url as (type text meta [
    Documentation.FieldCaption = "The url part name of your Meetup group",
-   Documentation.SampleValues = {"Vancouver-Power-BI-User-Group"} ]) ) as table; 
+   Documentation.SampleValues = {"Vancouver-Power-BI-User-Group"} ]) ) as 
+   table meta [Documentation.Name = "Meetup API",
+               Documentation.LongDescription = "Returns a table with key Meetup API data",
+        Documentation.Examples = {[
+            Description = "Returns a table with key Meetup API data",
+            Code = "Meetup.Contents() ",
+            Result = "A table with key Meetup API data"]}]; 
 
  Meetup.Navigation = ( group_url as text) =>
        let
@@ -135,11 +141,10 @@ GetPage = (url as text) as table =>
         dataHeaders = Record.FieldNames ( Record.Combine( body[results]) ),
         data =  Table.FromList( body[results], Splitter.SplitByNothing(), {"Column1"}),
         dataToTable =  Table.ExpandRecordColumn( data, "Column1", dataHeaders),
-        path = Record.Field( Uri.Parts(url), "Path"), 
-        AddDataTypes = if path = "/2/members" then MembersDataTypes(dataToTable) else 
-                    if Text.Split(path, "/"){2} = "events" then EventsDataTypes(dataToTable) else null  
+        path = Record.Field( Uri.Parts(url), "Path")               
     in
-        AddDataTypes meta [NextLink = nextLink];
+        if Text.Split(path, "/"){2} = "members" then MembersDataTypes(dataToTable) meta [NextLink = nextLink] else 
+                    if Text.Split(path, "/"){2} = "events" then EventsDataTypes(dataToTable) meta [NextLink = nextLink] else null;
 
 //// Function to get the query a page and create the correct response
 GetPageV3 = (url as text) as table =>
@@ -149,12 +154,11 @@ GetPageV3 = (url as text) as table =>
         nextLink = GetNextLinkV3(response),
         dataHeaders = Record.FieldNames ( Record.Combine(body) ),
         data =  Table.FromList( body, Splitter.SplitByNothing(), {"Column1"}),
-        dataToTable =  Table.ExpandRecordColumn( data, "Column1", dataHeaders),
-        path = Record.Field( Uri.Parts(url), "Path"), 
-        AddDataTypes = if path = "/2/members" then MembersDataTypes(dataToTable) else 
-                    if Text.Split(path, "/"){2} = "events" then EventsDataTypes(dataToTable) else null  
+        dataToTable =  Table.ExpandRecordColumn( data, "Column1", dataHeaders) as table,
+        path = Record.Field( Uri.Parts(url), "Path")
     in
-        AddDataTypes meta [NextLink = nextLink];
+        if Text.Split(path, "/"){2} = "members" then MembersDataTypes(dataToTable) meta [NextLink = nextLink] else 
+                    if Text.Split(path, "/"){2} = "events" then EventsDataTypes(dataToTable) meta [NextLink = nextLink] else null;
 
 // In this implementation, 'response' will be the parsed body of the response after the call to Json.Document.
 // We look for the '@odata.nextLink' field and simply return null if it doesn't exist.
