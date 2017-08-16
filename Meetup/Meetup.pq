@@ -41,9 +41,11 @@ GroupInfo = (group_url as text) as table =>
           key=  apiKey],
        response = Json.Document(Web.Contents("https://api.meetup.com", 
                  [RelativePath = group_url])),
-       toTable = Table.FromRecords ( {response})
+       toTable = Table.FromRecords ( {response}),
+       dataTypes =  Table.TransformColumnTypes(toTable,{{"id", Int64.Type}, {"name", type text}, {"status", type text}, {"link", type text}, {"urlname", type text}, {"description", type text}, {"country", type text}, {"city", type text}, {"localized_country_name", type text}, {"localized_location", type text}, {"join_mode", type text}, {"visibility", type text}, {"who", type text}, {"timezone", type text}, {"members", Int64.Type}, {"lon", type number}, {"lat", type number}, {"state", Int64.Type}}),
+    output = Table.TransformColumns(dataTypes, {{"created", each #datetime(1970,1,1,0,0,0)+#duration(0,0,0,_/1000), type datetime}})
         in
-            toTable; 
+            output; 
 
 GroupMembersUrl= (group_url as text) as text =>
     let
@@ -127,26 +129,32 @@ GetAllPagesByNextLinkV3 = (url as text) as table =>
 
 GetPage = (url as text) as table =>
     let
-        response = Web.Contents(url),        
+        response = Web.Contents(url),
         body = Json.Document(response),
         nextLink = GetNextLink(body),
         dataHeaders = Record.FieldNames ( Record.Combine( body[results]) ),
         data =  Table.FromList( body[results], Splitter.SplitByNothing(), {"Column1"}),
-        dataToTable =  Table.ExpandRecordColumn( data, "Column1", dataHeaders)
+        dataToTable =  Table.ExpandRecordColumn( data, "Column1", dataHeaders),
+        path = Record.Field( Uri.Parts(url), "Path"), 
+        AddDataTypes = if path = "/2/members" then MembersDataTypes(dataToTable) else 
+                    if Text.Split(path, "/"){2} = "events" then EventsDataTypes(dataToTable) else null  
     in
-        dataToTable meta [NextLink = nextLink];
+        AddDataTypes meta [NextLink = nextLink];
 
 //// Function to get the query a page and create the correct response
 GetPageV3 = (url as text) as table =>
     let
-        response = Web.Contents(url),        
+        response = Web.Contents(url),
         body = Json.Document(response),
         nextLink = GetNextLinkV3(response),
         dataHeaders = Record.FieldNames ( Record.Combine(body) ),
         data =  Table.FromList( body, Splitter.SplitByNothing(), {"Column1"}),
-        dataToTable =  Table.ExpandRecordColumn( data, "Column1", dataHeaders)
+        dataToTable =  Table.ExpandRecordColumn( data, "Column1", dataHeaders),
+        path = Record.Field( Uri.Parts(url), "Path"), 
+        AddDataTypes = if path = "/2/members" then MembersDataTypes(dataToTable) else 
+                    if Text.Split(path, "/"){2} = "events" then EventsDataTypes(dataToTable) else null  
     in
-        dataToTable meta [NextLink = nextLink];
+        AddDataTypes meta [NextLink = nextLink];
 
 // In this implementation, 'response' will be the parsed body of the response after the call to Json.Document.
 // We look for the '@odata.nextLink' field and simply return null if it doesn't exist.
@@ -188,3 +196,20 @@ Table.ToNavigationTable = (
         navigationTable = Value.ReplaceType(table, newTableType)
     in
         navigationTable;
+
+/////// Defining Data Types functions
+
+EventsDataTypes = (input as table) as table =>
+    let
+        #"Changed Type" = Table.TransformColumnTypes(input,{{"id", Int64.Type}, {"name", type text}, {"status", type text}, {"link", type text}, {"description", type text}, {"visibility", type text}, {"duration", Int64.Type}, {"manual_attendance_count", Int64.Type}, {"yes_rsvp_count", Int64.Type}, {"waitlist_count", Int64.Type}, {"utc_offset", Int64.Type}}),
+    epochConversion = Table.TransformColumns(#"Changed Type", {{"created", each #datetime(1970,1,1,0,0,0)+#duration(0,0,0,_/1000), type datetime}, {"time", each #datetime(1970,1,1,0,0,0)+#duration(0,0,0,_/1000), type datetime}, {"updated", each #datetime(1970,1,1,0,0,0)+#duration(0,0,0,_/1000), type datetime}})
+    in
+        epochConversion;
+
+MembersDataTypes = (input as table) as table => 
+    let 
+        #"Changed Type" = Table.TransformColumnTypes(input,{{"bio", type text}, {"hometown", type text}, {"status", type text}, {"state", type text}, {"name", type text}, {"link", type text}, {"city", type text}, {"country", type text}, {"lat", type number}, {"lon", type number}}),
+    #"Reordered Columns" = Table.ReorderColumns(#"Changed Type",{"country", "city", "topics", "joined", "link", "other_services", "name", "visited", "self", "id", "state", "lat", "lon", "status", "photo", "hometown", "bio"}),
+   epochConversion = Table.TransformColumns(#"Reordered Columns",{{"joined", each #datetime(1970,1,1,0,0,0)+#duration(0,0,0,_/1000), type datetime}, {"visited", each #datetime(1970,1,1,0,0,0)+#duration(0,0,0,_/1000), type datetime}})
+        in
+        epochConversion;
