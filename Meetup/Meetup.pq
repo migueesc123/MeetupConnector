@@ -48,7 +48,7 @@ GroupInfo = (group_url as text) as table =>
        response = Json.Document(Web.Contents("https://api.meetup.com", 
                  [RelativePath = group_url])),
        toTable = Table.FromRecords ( {response}),
-       dataTypes =  Table.TransformColumnTypes(toTable,{{"id", Int64.Type}, {"name", type text}, {"status", type text}, {"link", type text}, {"urlname", type text}, {"description", type text}, {"country", type text}, {"city", type text}, {"localized_country_name", type text}, {"localized_location", type text}, {"join_mode", type text}, {"visibility", type text}, {"who", type text}, {"timezone", type text}, {"members", Int64.Type}, {"lon", type number}, {"lat", type number}, {"state", Int64.Type}}),
+       dataTypes =  Table.TransformColumnTypes(toTable,{{"id", Int64.Type}, {"name", type text}, {"status", type text}, {"link", type text}, {"urlname", type text}, {"description", type text}, {"country", type text}, {"city", type text}, {"localized_country_name", type text}, {"localized_location", type text}, {"join_mode", type text}, {"visibility", type text}, {"who", type text}, {"timezone", type text}, {"members", Int64.Type}, {"lon", type number}, {"lat", type number}, {"state", type text}}),
     output = Table.TransformColumns(dataTypes, {{"created", each #datetime(1970,1,1,0,0,0)+#duration(0,0,0,_/1000), type datetime}})
         in
             output; 
