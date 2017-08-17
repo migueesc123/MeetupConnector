@@ -29,6 +29,7 @@ section Meetup;
     in
         NavTable;
 
+
 GroupEvents = (group_url as text) as text  =>
     let 
         apiKey = Extension.CurrentCredential()[Key],
@@ -205,14 +206,24 @@ Table.ToNavigationTable = (
 
 EventsDataTypes = (input as table) as table =>
     let
-        #"Changed Type" = Table.TransformColumnTypes(input,{{"id", Int64.Type}, {"name", type text}, {"status", type text}, {"link", type text}, {"description", type text}, {"visibility", type text}, {"duration", Int64.Type}, {"yes_rsvp_count", Int64.Type}, {"waitlist_count", Int64.Type}, {"utc_offset", Int64.Type}}),
+        OriginalColumnNames = Table.ColumnNames(input),
+        HardCodedKnownColumns = {"id","name","status","link","description","visibility","duration","yes_rsvp_count","waitlist_count","utc_offset"},
+        ColumnsToExpand = List.Distinct( List.Combine({OriginalColumnNames, HardCodedKnownColumns})),
+        TableToTable = #table({"Column1"},{{input}}),
+        ExpandColumns = Table.ExpandTableColumn(TableToTable, "Column1", ColumnsToExpand),
+        #"Changed Type" = Table.TransformColumnTypes(ExpandColumns,{{"id", Int64.Type}, {"name", type text}, {"status", type text}, {"link", type text}, {"description", type text}, {"visibility", type text}, {"duration", Int64.Type}, {"yes_rsvp_count", Int64.Type}, {"waitlist_count", Int64.Type}, {"utc_offset", Int64.Type}}),
     epochConversion = Table.TransformColumns(#"Changed Type", {{"created", each #datetime(1970,1,1,0,0,0)+#duration(0,0,0,_/1000), type datetime}, {"time", each #datetime(1970,1,1,0,0,0)+#duration(0,0,0,_/1000), type datetime}, {"updated", each #datetime(1970,1,1,0,0,0)+#duration(0,0,0,_/1000), type datetime}})
     in
         epochConversion;
 
 MembersDataTypes = (input as table) as table => 
-    let 
-        #"Changed Type" = Table.TransformColumnTypes(input,{{"bio", type text},{"joined", type number}, {"hometown", type text}, {"status", type text}, {"state", type text}, {"visited",  type number}, {"name", type text}, {"link", type text}, {"city", type text}, {"country", type text}, {"lat", type number}, {"lon", type number},{"id", Int64.Type}}),
+    let
+        OriginalColumnNames = Table.ColumnNames(input),
+        HardCodedKnownColumns = {"bio","joined","hometown","status","state","visited","name","link","city","country","lat","lon","id"},
+         ColumnsToExpand = List.Distinct( List.Combine({OriginalColumnNames, HardCodedKnownColumns})),
+         TableToTable = #table({"Column1"},{{input}}),
+         ExpandColumns = Table.ExpandTableColumn(TableToTable, "Column1", ColumnsToExpand),
+        #"Changed Type" =  Table.TransformColumnTypes(ExpandColumns,{{"bio", type text},{"joined", type number}, {"hometown", type text}, {"status", type text}, {"state", type text}, {"visited",  type number}, {"name", type text}, {"link", type text}, {"city", type text}, {"country", type text}, {"lat", type number}, {"lon", type number},{"id", Int64.Type}}),
     #"Reordered Columns" = Table.ReorderColumns(#"Changed Type",{"country", "city", "topics", "joined", "link", "other_services", "name", "visited", "self", "id", "state", "lat", "lon", "status", "photo", "hometown", "bio"}),
    epochConversion = Table.TransformColumns(#"Reordered Columns",{{"joined", each #datetime(1970,1,1,0,0,0)+#duration(0,0,0,_/1000), type datetime}, {"visited", each #datetime(1970,1,1,0,0,0)+#duration(0,0,0,_/1000), type datetime}})
         in
