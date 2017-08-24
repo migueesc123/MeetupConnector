@@ -2,6 +2,7 @@
 // This custom connector is not intended for sale
 
 section Meetup;
+ RequestsPerPage ="200";
 
 [DataSource.Kind="Meetup", Publish="Meetup.Publish"]
  shared Meetup.Contents = Value.ReplaceType ( Meetup.Navigation, ConnectorParams);
@@ -23,7 +24,7 @@ section Meetup;
             {"Name",       "Key",  "Data",                "ItemKind", "ItemName", "IsLeaf"},{
              {"Group",   "Group",  GroupInfo(group_url)  , "Table",    "Table",    true},
             {"Members",   "Members",  GetAllPagesByNextLink( GroupMembersUrl(group_url) ) , "Table",    "Table",    true},
-             {"Events",   "Events", GetAllPagesByNextLinkV3 ( GroupEvents(group_url)  ), "Table",    "Table",    true}
+             {"Events",   "Events", MyEventsData ( GroupEvents(group_url)  ), "Table",    "Table",    true}
         }),
         NavTable = Table.ToNavigationTable(objects, {"Key"}, "Name", "Data", "ItemKind", "ItemName", "IsLeaf")
     in
@@ -34,7 +35,7 @@ GroupEvents = (group_url as text) as text  =>
     let 
         apiKey = Extension.CurrentCredential()[Key],
         Headers =  [format="json",
-          page="50",
+          page=RequestsPerPage,
           status = "past,upcoming",
           key=  apiKey],
        url = "https://api.meetup.com/" & group_url & "/events"  &"?"&  Uri.BuildQueryString( Headers)  
@@ -63,7 +64,7 @@ GroupMembersUrl= (group_url as text) as text =>
         apiKey = Extension.CurrentCredential()[Key],
         Headers =  [group_urlname= group_url, 
           format="json", 
-          page="200",
+          page=RequestsPerPage,
           key=  apiKey],
        url = Uri.Combine("https://api.meetup.com","2/members") &"?"&  Uri.BuildQueryString( Headers)                                                                                              
     in
@@ -137,6 +138,24 @@ GetAllPagesByNextLinkV3 = (url as text) as table =>
         in
             page
     );
+
+MyEventsData = (url as text) =>
+    let
+        MaxPages = Number.RoundUp (  
+        (Number.From( Record.Field( 
+                            Value.Metadata( 
+                                Web.Contents(url)), 
+                                "Headers")[#"X-Total-Count"])
+                               / Number.From(RequestsPerPage)), 0),
+        MyList= List.Generate( ()=>
+           [Result = GetPageV3(Link), currentPage = 1, Link= url],
+           each [currentPage] <= MaxPages ,
+            each    [Result= GetPageV3( Link) , 
+                    currentPage=[currentPage]+1, Link= Record.Field( Value.Metadata([Result]), "NextLink")],
+            each [Result] ),
+         ToTable = Table.Combine( MyList)
+               in
+                   ToTable;
 
 GetPage = (url as text) as table =>
     let
@@ -215,7 +234,7 @@ EventsDataTypes = (input as table) as table =>
         ColumnsToExpand = List.Distinct( List.Combine({OriginalColumnNames, HardCodedKnownColumns})),
         TableToTable = #table({"Column1"},{{input}}),
         ExpandColumns = Table.ExpandTableColumn(TableToTable, "Column1", ColumnsToExpand),
-        #"Changed Type" = Table.TransformColumnTypes(ExpandColumns,{{"id", Int64.Type}, {"name", type text}, {"status", type text}, {"link", type text}, {"description", type text}, {"visibility", type text}, {"duration", Int64.Type}, {"yes_rsvp_count", Int64.Type}, {"waitlist_count", Int64.Type}, {"utc_offset", Int64.Type}}),
+        #"Changed Type" = Table.TransformColumnTypes(ExpandColumns,{{"id", type text}, {"name", type text}, {"status", type text}, {"link", type text}, {"description", type text}, {"visibility", type text}, {"duration", Int64.Type}, {"yes_rsvp_count", Int64.Type}, {"waitlist_count", Int64.Type}, {"utc_offset", Int64.Type}}),
     epochConversion = Table.TransformColumns(#"Changed Type", {{"created", each #datetime(1970,1,1,0,0,0)+#duration(0,0,0,_/1000), type datetime}, {"time", each #datetime(1970,1,1,0,0,0)+#duration(0,0,0,_/1000), type datetime}, {"updated", each #datetime(1970,1,1,0,0,0)+#duration(0,0,0,_/1000), type datetime}})
     in
         epochConversion;
@@ -223,7 +242,7 @@ EventsDataTypes = (input as table) as table =>
 MembersDataTypes = (input as table) as table => 
     let
         OriginalColumnNames = Table.ColumnNames(input),
-        HardCodedKnownColumns = {"bio","joined","hometown","status","state","visited","name","link","city","country","lat","lon","id"},
+        HardCodedKnownColumns = {"bio","joined","hometown","status","state","visited","name","link","city","country","lat","lon","id", "topics", "other_services", "self"},
          ColumnsToExpand = List.Distinct( List.Combine({OriginalColumnNames, HardCodedKnownColumns})),
          TableToTable = #table({"Column1"},{{input}}),
          ExpandColumns = Table.ExpandTableColumn(TableToTable, "Column1", ColumnsToExpand),
