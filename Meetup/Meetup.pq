@@ -72,6 +72,13 @@ GroupMembersUrl= (group_url as text) as text =>
 
 // Data Source Kind description
 Meetup = [
+TestConnection = (dataSourcePath) => 
+        let
+            json = Json.Document(dataSourcePath),
+            group_url  = json[group_url]
+        in
+            { "Meetup.Contents", group_url},
+
     Authentication = [
         Key = []
     ]
