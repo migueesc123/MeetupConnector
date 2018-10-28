@@ -254,7 +254,6 @@ MembersDataTypes = (input as table) as table =>
          TableToTable = #table({"Column1"},{{input}}),
          ExpandColumns = Table.ExpandTableColumn(TableToTable, "Column1", ColumnsToExpand),
         #"Changed Type" =  Table.TransformColumnTypes(ExpandColumns,{{"bio", type text},{"joined", type number}, {"hometown", type text}, {"status", type text}, {"state", type text}, {"visited",  type number}, {"name", type text}, {"link", type text}, {"city", type text}, {"country", type text}, {"lat", type number}, {"lon", type number},{"id", Int64.Type}}),
-    #"Reordered Columns" = Table.ReorderColumns(#"Changed Type",{"country", "city", "topics", "joined", "link", "other_services", "name", "visited", "self", "id", "state", "lat", "lon", "status", "photo", "hometown", "bio"}),
-   epochConversion = Table.TransformColumns(#"Reordered Columns",{{"joined", each #datetime(1970,1,1,0,0,0)+#duration(0,0,0,_/1000), type datetime}, {"visited", each #datetime(1970,1,1,0,0,0)+#duration(0,0,0,_/1000), type datetime}})
+      epochConversion = Table.TransformColumns(#"Changed Type",{{"joined", each #datetime(1970,1,1,0,0,0)+#duration(0,0,0,_/1000), type datetime}, {"visited", each #datetime(1970,1,1,0,0,0)+#duration(0,0,0,_/1000), type datetime}})
         in
         epochConversion;
